@@ -59,8 +59,23 @@ bool IOCtlSrc::Reopen(Error* error)
 	DeviceIoControl(m_device, FSCTL_ALLOW_EXTENDED_DASD_IO, nullptr, 0, nullptr,
 					0, &unused, nullptr);
 
-	if (ReadDVDInfo() || ReadCDInfo())
+	// Retry reading disc info with delays if initial attempt fails
+	// This helps with discs that need more time to become readable
+	bool success = false;
+	for (int retry = 0; retry < 3 && !success; ++retry)
+	{
+		if (retry > 0)
+		{
+			Console.WriteLn("CDVD: Retrying disc info read (attempt %d)...", retry + 1);
+			Sleep(250); // Short delay between retries
+		}
+		success = ReadDVDInfo() || ReadCDInfo();
+	}
+
+	if (success)
 		SetSpindleSpeed(false);
+	else
+		Console.Warning("CDVD: Failed to read disc info after retries");
 
 	return true;
 }
@@ -337,13 +352,37 @@ bool IOCtlSrc::DiscReady()
 						nullptr, 0, &unused, nullptr))
 	{
 		if (!m_sectors)
+		{
+			// Disc detected but no sectors yet - need to wait for stabilization
+			if (!m_awaiting_stabilization)
+			{
+				// First detection - start stabilization timer
+				m_awaiting_stabilization = true;
+				m_disc_detected_time = std::chrono::steady_clock::now();
+				Console.WriteLn("CDVD: Disc detected, waiting for stabilization...");
+				return false; // Not ready yet
+			}
+
+			// Check if stabilization period has elapsed (750ms)
+			auto elapsed = std::chrono::steady_clock::now() - m_disc_detected_time;
+			if (elapsed < std::chrono::milliseconds(750))
+			{
+				return false; // Still stabilizing
+			}
+
+			// Stabilization complete - try to reopen and read disc info
+			Console.WriteLn("CDVD: Stabilization complete, reopening device...");
+			m_awaiting_stabilization = false;
 			Reopen(nullptr);
+		}
 	}
 	else
 	{
+		// Disc removed or not ready
 		m_sectors = 0;
 		m_layer_break = 0;
 		m_media_type = 0;
+		m_awaiting_stabilization = false;
 	}
 
 	return !!m_sectors;

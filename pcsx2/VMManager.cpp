@@ -103,7 +103,7 @@ namespace VMManager
 	static void WarnAboutUnsafeSettings();
 
 	static bool AutoDetectSource(const std::string& filename, Error* error = nullptr);
-	static void UpdateDiscDetails(bool booting);
+	// UpdateDiscDetails is now declared in VMManager.h
 	static void ClearDiscDetails();
 	static void HandleELFChange(bool verbose_patches_if_changed);
 	static void UpdateELFInfo(std::string elf_path);
@@ -998,6 +998,7 @@ bool VMManager::UpdateGameSettingsLayer()
 
 void VMManager::UpdateDiscDetails(bool booting)
 {
+	Console.WriteLn("VMManager::UpdateDiscDetails called (booting=%d)", booting);
 	std::string memcardFilters;
 	{
 		// Only need to protect writes with the mutex.

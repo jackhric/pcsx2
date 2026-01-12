@@ -209,6 +209,9 @@ namespace VMManager
 	/// Returns false if the new disc can't be opened.
 	bool ChangeDisc(CDVD_SourceType source, std::string path);
 
+	/// Updates the disc details (title, serial, CRC) after a disc change or hotswap.
+	void UpdateDiscDetails(bool booting);
+
 	/// Changes the ELF to boot ("ELF override"). The VM will be reset.
 	bool SetELFOverride(std::string path);
 

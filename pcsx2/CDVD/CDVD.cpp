@@ -1049,8 +1049,17 @@ bool SaveStateBase::cdvdFreeze()
 
 void cdvdNewDiskCB()
 {
+	Console.WriteLn(Color_Green, "cdvdNewDiskCB() called - detecting disc...");
 	DoCDVDresetDiskTypeCache();
 	cdvdDetectDisk();
+	Console.WriteLn(Color_Green, "cdvdNewDiskCB() - disc type detected: %d", cdvd.DiscType);
+
+	// Notify VMManager to update disc details (game title, serial, etc.)
+	// This must run on the CPU thread, so queue it
+	Console.WriteLn(Color_Green, "cdvdNewDiskCB() - queuing UpdateDiscDetails on CPU thread...");
+	Host::RunOnCPUThread([]() {
+		VMManager::UpdateDiscDetails(false);
+	});
 
 	// If not ejected but we've swapped source pretend it got ejected
 	if (!VMManager::Internal::IsFastBootInProgress() && cdvd.Tray.trayState != CDVD_DISC_EJECT)

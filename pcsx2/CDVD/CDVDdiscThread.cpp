@@ -132,10 +132,13 @@ static bool cdvdUpdateDiscStatus()
 {
 	bool ready = src->DiscReady();
 
+	printf(" * CDVD: cdvdUpdateDiscStatus() - ready=%d, disc_has_changed=%d\n", ready, disc_has_changed);
+
 	if (!ready)
 	{
 		if (!disc_has_changed)
 		{
+			printf(" * CDVD: Disc removed or not ready, setting disc_has_changed=true\n");
 			disc_has_changed = true;
 			curDiskType = CDVD_TYPE_NODISC;
 			curTrayStatus = CDVD_TRAY_OPEN;
@@ -146,6 +149,31 @@ static bool cdvdUpdateDiscStatus()
 	{
 		if (disc_has_changed)
 		{
+			printf(" * CDVD: Disc is ready and was changed, verifying readability...\n");
+			// Before declaring the disc ready, verify we can actually read from it
+			// by attempting to read sector 16 (the ISO primary volume descriptor)
+			u8 test_buffer[2048];
+			bool read_success = false;
+
+			if (src->GetSectorCount() > 16)
+			{
+				if (src->GetMediaType() >= 0)
+					read_success = src->ReadSectors2048(16, 1, test_buffer);
+				else
+					read_success = src->ReadSectors2352(16, 1, test_buffer);
+			}
+
+			printf(" * CDVD: Read verification result: %s (sectors=%u, media_type=%d)\n",
+				read_success ? "SUCCESS" : "FAILED", src->GetSectorCount(), src->GetMediaType());
+
+			if (!read_success)
+			{
+				// Disc not actually readable yet - keep waiting
+				printf(" * CDVD: Disc detected but not readable yet, waiting...\n");
+				return true; // Report as not ready
+			}
+
+			printf(" * CDVD: Calling cdvdRefreshData()...\n");
 			curDiskType = CDVD_TYPE_NODISC;
 			curTrayStatus = CDVD_TRAY_CLOSE;
 
@@ -157,7 +185,9 @@ static bool cdvdUpdateDiscStatus()
 				s_request_queue = decltype(s_request_queue)();
 			}
 
+			printf(" * CDVD: Calling cdvdCallNewDiscCB()...\n");
 			cdvdCallNewDiscCB();
+			printf(" * CDVD: cdvdCallNewDiscCB() completed\n");
 		}
 	}
 	return !ready;
@@ -376,6 +406,9 @@ void cdvdRefreshData()
 {
 	const char* diskTypeName = "Unknown";
 
+	// Clear cache before reading new disc data to avoid stale sectors
+	cdvdCacheReset();
+
 	//read TOC from device
 	cdvdParseTOC();
 
@@ -414,6 +447,4 @@ void cdvdRefreshData()
 	}
 
 	printf(" * CDVD: Disk Type: %s\n", diskTypeName);
-
-	cdvdCacheReset();
 }

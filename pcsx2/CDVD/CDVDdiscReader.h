@@ -11,6 +11,7 @@
 #include "common/Pcsx2Defs.h"
 
 #include <array>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -47,6 +48,12 @@ class IOCtlSrc
 	u32 m_sectors = 0;
 	u32 m_layer_break = 0;
 	std::vector<toc_entry> m_toc;
+
+#if defined(_WIN32)
+	// Stabilization timer for disc hotswap detection
+	std::chrono::steady_clock::time_point m_disc_detected_time{};
+	bool m_awaiting_stabilization = false;
+#endif
 
 	bool ReadDVDInfo();
 	bool ReadCDInfo();
