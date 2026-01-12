@@ -259,6 +259,15 @@ static s32 DISCgetBuffer(u8* dest)
 		return 0;
 	}
 
+	// Non-blocking cache check: if data is not yet cached, return -2 to signal
+	// the caller to reschedule the interrupt instead of blocking
+	const u32 sector_block = csector & ~(sectors_per_read - 1);
+	if (!cdvdCacheCheck(sector_block))
+	{
+		// Data not ready yet - background thread is still fetching from disc
+		return -2;
+	}
+
 	memcpy(dest, cdvdGetSector(csector, cmode), csize);
 
 	return 0;
